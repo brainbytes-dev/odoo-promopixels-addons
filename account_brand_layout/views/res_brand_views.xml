@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 BrainBytes Studio, License AGPL-3.0 or later
+     Exposes the brand-specific document fields (models/res_brand.py) that
+     had no UI so far - report_header/report_footer/company_details were
+     only reachable via Technical > Database Structure without this. -->
+<odoo>
+    <record id="res_brand_form_view_document_fields" model="ir.ui.view">
+        <field name="name">res.brand.form - account_brand_layout document fields</field>
+        <field name="model">res.brand</field>
+        <field name="inherit_id" ref="brand.res_brand_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet/group" position="after">
+                <group string="Dokumenten-Branding (Rechnungen/Angebote)">
+                    <field name="report_header" placeholder="Kopfzeile auf Rechnungen/Angeboten dieser Brand (optional)"/>
+                    <field name="report_footer" placeholder="Fusszeile auf Rechnungen/Angeboten dieser Brand (optional, z.B. Rechtsform, UID, MWST-Hinweis)"/>
+                    <field name="company_details" placeholder="Zusätzliche Firmendetails im Adressblock (optional)"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>

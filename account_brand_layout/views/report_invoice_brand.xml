@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- BrainBytes Studio 2026, License AGPL-3.0 or later.
+     Swaps the identity rendered by web.external_layout (logo/address/footer)
+     from the invoice's company to its brand, when a brand is set - keeping
+     the real company's layout/colors/paperformat via
+     res.brand._get_branded_company (see models/res_brand.py for why). Must
+     be set BEFORE the t-call so web.external_layout's own "not company"
+     fallback sees it already assigned. -->
+<odoo>
+    <template id="report_invoice_document_brand" inherit_id="account.report_invoice_document">
+        <xpath expr="//t[@t-call='web.external_layout']" position="before">
+            <t t-if="o.brand_id" t-set="company" t-value="o.brand_id._get_branded_company(o.company_id)"/>
+        </xpath>
+    </template>
+</odoo>

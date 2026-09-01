@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 BrainBytes Studio, License AGPL-3.0 or later
+     l10n_din5008's footer renders company.company_registry unconditionally
+     (empty <li> still takes up space in the list). For Swiss companies the
+     UID doubles as the commercial registry number since the 2011 reform, so
+     company_registry is often set to the exact same value as vat - showing
+     both lines then just duplicates the same number under two labels, so
+     also hide it when it matches vat. Not brand-specific, just a general
+     cleanup for this company's chosen layout. -->
+<odoo>
+    <template id="external_layout_din5008_hide_empty_registry" inherit_id="l10n_din5008.external_layout_din5008">
+        <xpath expr="//li[span[@t-field='company.company_registry']]" position="attributes">
+            <attribute name="t-if">company.company_registry and company.company_registry != company.vat</attribute>
+        </xpath>
+    </template>
+</odoo>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 BrainBytes Studio, License AGPL-3.0 or later
+     Mirrors report_invoice_brand.xml: swaps the identity rendered by
+     web.external_layout from the order's company to its brand, when a
+     brand is set, via res.brand._get_branded_company (keeps the real
+     company's layout/colors/paperformat - see models/res_brand.py).
+     Sale report templates iterate as "doc" (confirmed via a live
+     traceback), not "o" like account's invoice report. -->
+<odoo>
+    <template id="report_saleorder_document_brand" inherit_id="sale.report_saleorder_document">
+        <xpath expr="//t[@t-call='web.external_layout']" position="before">
+            <t t-if="doc.brand_id" t-set="company" t-value="doc.brand_id._get_branded_company(doc.company_id)"/>
+        </xpath>
+    </template>
+</odoo>
