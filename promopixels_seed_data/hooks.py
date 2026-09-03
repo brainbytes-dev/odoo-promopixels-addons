@@ -334,3 +334,26 @@ def seed_demo_data(env):
 
     env.cr.commit()
     print("SEED_DEMO_RESULT:", result)
+
+
+def grant_internal_users_document_access(env):
+    """document_page's own security data only adds base.user_root and
+    base.user_admin (the literal "admin" superuser) to its Manager group -
+    every other internal user, even ones with full Administrator access
+    rights otherwise, sees no Knowledge menu at all until added here.
+    Superusers bypass group checks entirely, which is why "admin" always
+    saw it and nobody else did. Runs every boot, safe no-op once everyone
+    is already a member."""
+    try:
+        group = env.ref("document_page.group_document_manager")
+    except ValueError:
+        print("DOCUMENT_ACCESS_GRANT: skipped, module not installed yet")
+        return
+    internal_users = env["res.users"].search(
+        [("share", "=", False), ("active", "=", True)]
+    )
+    to_add = internal_users - group.users
+    if to_add:
+        group.write({"users": [(4, u.id) for u in to_add]})
+    env.cr.commit()
+    print("DOCUMENT_ACCESS_GRANT:", internal_users.mapped("login"))
