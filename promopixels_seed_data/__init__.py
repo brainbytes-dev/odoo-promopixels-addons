@@ -8,4 +8,5 @@ from .hooks import (
     setup_knowledge_base,
     setup_lytbox_playbook,
     setup_properties_analytic_plan,
+    setup_theme_colors,
 )

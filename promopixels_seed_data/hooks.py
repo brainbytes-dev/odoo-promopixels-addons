@@ -734,3 +734,53 @@ def setup_properties_analytic_plan(env):
         )
         env.cr.commit()
         print("PROPERTIES_ANALYTIC_PLAN_SETUP: FAILED, see ir.config_parameter promopixels_seed_data.analytic_plan_error")
+
+
+# PromoPixels brand palette (Henrik, 2026-09-05): single pink/magenta accent
+# shared by light and dark mode, exact backgrounds/borders per mode. Applied
+# through MuK's own supported color-settings mechanism (res.config.settings
+# -> muk_web_colors' color_assets_editor), not raw SCSS hacking - stays
+# compatible with MuK's own theme updates. Success/info/warning are NOT
+# part of Henrik's spec (only accent + destructive were given) - picked
+# harmonizing standard semantic colors for those three.
+THEME_SETTINGS = {
+    "color_brand_light": "#D4208F",
+    "color_primary_light": "#D4208F",
+    "color_success_light": "#16A34A",
+    "color_info_light": "#2563EB",
+    "color_warning_light": "#D97706",
+    "color_danger_light": "#E7000B",
+    "color_brand_dark": "#D4208F",
+    "color_primary_dark": "#D4208F",
+    "color_success_dark": "#22C55E",
+    "color_info_dark": "#3B82F6",
+    "color_warning_dark": "#F59E0B",
+    "color_danger_dark": "#FF6467",
+    "theme_color_appbar_background": "#1A1C3F",
+    "theme_color_appbar_text": "#FAFAFA",
+    "theme_color_appbar_active": "#D4208F",
+    "theme_color_appsmenu_text": "#FAFAFA",
+}
+
+
+def setup_theme_colors(env):
+    """Sets the PromoPixels accent + sidebar colors via MuK's own settings
+    wizard mechanism (safe, upgrade-compatible) - NOT a full page/card/
+    border re-skin, MuK's settings API doesn't expose those tokens. Runs
+    every time the seed version bumps, safe to re-run (just re-applies the
+    same values)."""
+    import traceback
+
+    try:
+        Settings = env["res.config.settings"]
+        settings = Settings.create(THEME_SETTINGS)
+        settings.execute()
+        env.cr.commit()
+        print("THEME_COLORS_SETUP: done")
+    except Exception:
+        env.cr.rollback()
+        env["ir.config_parameter"].sudo().set_param(
+            "promopixels_seed_data.theme_colors_error", traceback.format_exc()
+        )
+        env.cr.commit()
+        print("THEME_COLORS_SETUP: FAILED, see ir.config_parameter promopixels_seed_data.theme_colors_error")
