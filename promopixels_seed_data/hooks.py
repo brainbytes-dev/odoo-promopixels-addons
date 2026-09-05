@@ -382,29 +382,45 @@ DELIVERY_MILESTONES = [
 WEBSITE_PACKAGE_PRODUCTS = [
     "Launch - Website-Paket",
     "Growth - Website-Paket",
-    "Scale - Website-Paket",
+]
+
+# Scale is individually scoped/custom-negotiated (unlike the fixed-scope
+# Launch/Growth packages), so it gets the raw Lytbox master template's
+# design-approval gate before full build starts ("no build without approved
+# design") - deliberately NOT applied to Launch/Growth, whose own SOP says a
+# separate approval step isn't needed because their scope is fixed upfront.
+SCALE_STAGES = [
+    "Onboarding",
+    "Asset-Sammlung",
+    "Design-Freigabe",
+    "Build",
+    "QA & Review",
+    "Übergabe",
+    "Abgeschlossen",
+]
+
+SCALE_MILESTONES = [
+    "Kickoff",
+    "Design freigegeben",
+    "Zwischenstand geliefert",
+    "QA bestanden",
+    "Übergabe abgeschlossen",
 ]
 
 
-def setup_delivery_project_template(env):
-    """Confirming a Launch/Growth/Scale sale order should not hand back a
-    blank project - it should hand back the real delivery process. Creates
-    one project.project template (Odoo's native is_template mechanism, wired
-    to the product via service_tracking=project_only + project_template_id)
-    with the actual SOP stages and milestones. Safe to re-run: upserts by
-    name, never duplicates."""
+def _build_project_template(env, template_name, stage_names, milestone_names):
+    """Creates (or fetches) one is_template=True project.project with the
+    given stages and milestones. Safe to re-run: upserts by name, never
+    duplicates stages/milestones on repeat boots."""
     Project = env["project.project"]
     Stage = env["project.task.type"]
     Milestone = env["project.milestone"]
-    Product = env["product.template"]
 
-    template = Project.search(
-        [("name", "=", "Vorlage: Website-Projekt"), ("is_template", "=", True)], limit=1
-    )
+    template = Project.search([("name", "=", template_name), ("is_template", "=", True)], limit=1)
     if not template:
-        template = Project.create({"name": "Vorlage: Website-Projekt", "is_template": True})
+        template = Project.create({"name": template_name, "is_template": True})
 
-    for seq, stage_name in enumerate(DELIVERY_STAGES):
+    for seq, stage_name in enumerate(stage_names):
         already_on_template = Stage.search(
             [("name", "=", stage_name), ("project_ids", "in", template.id)], limit=1
         )
@@ -416,11 +432,25 @@ def setup_delivery_project_template(env):
         else:
             Stage.create({"name": stage_name, "sequence": seq, "project_ids": [(4, template.id)]})
 
-    for milestone_name in DELIVERY_MILESTONES:
+    for milestone_name in milestone_names:
         if not Milestone.search(
             [("name", "=", milestone_name), ("project_id", "=", template.id)], limit=1
         ):
             Milestone.create({"name": milestone_name, "project_id": template.id})
+
+    return template
+
+
+def setup_delivery_project_template(env):
+    """Confirming a Launch/Growth sale order should not hand back a blank
+    project - it should hand back the real delivery process (Obsidian:
+    Notizen/client-onboarding-sop.md). Wired to the product via
+    service_tracking=project_only + project_template_id."""
+    Product = env["product.template"]
+
+    template = _build_project_template(
+        env, "Vorlage: Website-Projekt", DELIVERY_STAGES, DELIVERY_MILESTONES
+    )
 
     for product_name in WEBSITE_PACKAGE_PRODUCTS:
         product = Product.search([("name", "=", product_name)], limit=1)
@@ -429,6 +459,24 @@ def setup_delivery_project_template(env):
 
     env.cr.commit()
     print("DELIVERY_PROJECT_TEMPLATE_SETUP: done, template id", template.id)
+
+
+def setup_scale_design_gate_template(env):
+    """Scale - Website-Paket gets its own template with the extra
+    design-approval gate (see SCALE_STAGES/SCALE_MILESTONES above), instead
+    of sharing the simpler Launch/Growth template."""
+    Product = env["product.template"]
+
+    template = _build_project_template(
+        env, "Vorlage: Scale-Projekt", SCALE_STAGES, SCALE_MILESTONES
+    )
+
+    product = Product.search([("name", "=", "Scale - Website-Paket")], limit=1)
+    if product:
+        product.write({"service_tracking": "project_only", "project_template_id": template.id})
+
+    env.cr.commit()
+    print("SCALE_DESIGN_GATE_TEMPLATE_SETUP: done, template id", template.id)
 
 
 def setup_timesheet_billing(env):
