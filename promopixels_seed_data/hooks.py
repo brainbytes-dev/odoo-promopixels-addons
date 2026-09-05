@@ -719,8 +719,18 @@ def setup_properties_analytic_plan(env):
     adds one analytic account per property once a channel actually starts
     moving money, not invented ahead of time. Safe to re-run: upserts by
     name."""
-    Plan = env["account.analytic.plan"]
-    if not Plan.search([("name", "=", "Properties & Channels")], limit=1):
-        Plan.create({"name": "Properties & Channels"})
-    env.cr.commit()
-    print("PROPERTIES_ANALYTIC_PLAN_SETUP: done")
+    import traceback
+
+    try:
+        Plan = env["account.analytic.plan"]
+        if not Plan.search([("name", "=", "Properties & Channels")], limit=1):
+            Plan.create({"name": "Properties & Channels"})
+        env.cr.commit()
+        print("PROPERTIES_ANALYTIC_PLAN_SETUP: done")
+    except Exception:
+        env.cr.rollback()
+        env["ir.config_parameter"].sudo().set_param(
+            "promopixels_seed_data.analytic_plan_error", traceback.format_exc()
+        )
+        env.cr.commit()
+        print("PROPERTIES_ANALYTIC_PLAN_SETUP: FAILED, see ir.config_parameter promopixels_seed_data.analytic_plan_error")
