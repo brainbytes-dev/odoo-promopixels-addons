@@ -6,4 +6,5 @@ from .hooks import (
     setup_scale_design_gate_template,
     setup_timesheet_billing,
     setup_knowledge_base,
+    setup_lytbox_playbook,
 )

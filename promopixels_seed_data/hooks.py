@@ -640,10 +640,11 @@ KNOWLEDGE_PAGES = [
 
 def setup_knowledge_base(env):
     """document_page was installed with an empty Knowledge menu - installed
-    is not the same as usable. Imports the two SOPs the delivery process
+    is not the same as usable. Imports the SOPs the delivery process
     actually depends on (Obsidian: Notizen/client-onboarding-sop.md,
-    Notizen/qa-checklist-delivery.md), verbatim, under one category page.
-    Safe to re-run: upserts by name."""
+    Notizen/qa-checklist-delivery.md) plus the other PromoPixels-specific
+    process/template docs (PP_EXTRA_PAGES), verbatim, under one category
+    page. Safe to re-run: upserts by name."""
     try:
         Page = env["document.page"]
     except KeyError:
@@ -654,7 +655,10 @@ def setup_knowledge_base(env):
     if not parent:
         parent = Page.create({"name": "PromoPixels Prozesse", "type": "category"})
 
-    for page_data in KNOWLEDGE_PAGES:
+    from .knowledge_content import PP_EXTRA_PAGES
+
+    all_pages = KNOWLEDGE_PAGES + PP_EXTRA_PAGES
+    for page_data in all_pages:
         vals = dict(page_data, parent_id=parent.id, type="content")
         existing = Page.search([("name", "=", page_data["name"])], limit=1)
         if existing:
@@ -663,4 +667,45 @@ def setup_knowledge_base(env):
             Page.create(vals)
 
     env.cr.commit()
-    print("KNOWLEDGE_BASE_SETUP: done,", len(KNOWLEDGE_PAGES), "pages under", parent.name)
+    print("KNOWLEDGE_BASE_SETUP: done,", len(all_pages), "pages under", parent.name)
+
+
+def setup_lytbox_playbook(env):
+    """Imports the full Lytbox Notion Playbook (the course material this
+    whole delivery process was adapted from) as its own reference tree
+    under Knowledge, grouped by the Playbook's own folder structure.
+    Raw course reference, not PromoPixels' own adapted process - kept
+    separate from "PromoPixels Prozesse" for that reason. Safe to re-run:
+    upserts by name."""
+    try:
+        Page = env["document.page"]
+    except KeyError:
+        print("LYTBOX_PLAYBOOK_SETUP: skipped, document_page not installed yet")
+        return
+
+    from .knowledge_content import LYTBOX_PLAYBOOK
+
+    root = Page.search([("name", "=", "Lytbox Playbook (Referenz)")], limit=1)
+    if not root:
+        root = Page.create({"name": "Lytbox Playbook (Referenz)", "type": "category"})
+
+    total = 0
+    for section_name, pages in LYTBOX_PLAYBOOK.items():
+        section = Page.search(
+            [("name", "=", section_name), ("parent_id", "=", root.id)], limit=1
+        )
+        if not section:
+            section = Page.create(
+                {"name": section_name, "type": "category", "parent_id": root.id}
+            )
+        for page_data in pages:
+            vals = dict(page_data, parent_id=section.id, type="content")
+            existing = Page.search([("name", "=", page_data["name"])], limit=1)
+            if existing:
+                existing.write(vals)
+            else:
+                Page.create(vals)
+            total += 1
+
+    env.cr.commit()
+    print("LYTBOX_PLAYBOOK_SETUP: done,", total, "pages under", root.name)
