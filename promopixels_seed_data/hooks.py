@@ -357,3 +357,250 @@ def grant_internal_users_document_access(env):
         group.write({"users": [(4, u.id) for u in to_add]})
     env.cr.commit()
     print("DOCUMENT_ACCESS_GRANT:", internal_users.mapped("login"))
+
+
+# P1 build-out (2026-09-05): real delivery process from the Obsidian vault
+# (Notizen/client-onboarding-sop.md, Notizen/qa-checklist-delivery.md) wired
+# into Odoo instead of living only as prose nobody re-reads mid-project.
+
+DELIVERY_STAGES = [
+    "Onboarding",
+    "Asset-Sammlung",
+    "Build",
+    "QA & Review",
+    "Übergabe",
+    "Abgeschlossen",
+]
+
+DELIVERY_MILESTONES = [
+    "Kickoff",
+    "Zwischenstand geliefert",
+    "QA bestanden",
+    "Übergabe abgeschlossen",
+]
+
+WEBSITE_PACKAGE_PRODUCTS = [
+    "Launch - Website-Paket",
+    "Growth - Website-Paket",
+    "Scale - Website-Paket",
+]
+
+
+def setup_delivery_project_template(env):
+    """Confirming a Launch/Growth/Scale sale order should not hand back a
+    blank project - it should hand back the real delivery process. Creates
+    one project.project template (Odoo's native is_template mechanism, wired
+    to the product via service_tracking=project_only + project_template_id)
+    with the actual SOP stages and milestones. Safe to re-run: upserts by
+    name, never duplicates."""
+    Project = env["project.project"]
+    Stage = env["project.task.type"]
+    Milestone = env["project.milestone"]
+    Product = env["product.template"]
+
+    template = Project.search(
+        [("name", "=", "Vorlage: Website-Projekt"), ("is_template", "=", True)], limit=1
+    )
+    if not template:
+        template = Project.create({"name": "Vorlage: Website-Projekt", "is_template": True})
+
+    for seq, stage_name in enumerate(DELIVERY_STAGES):
+        already_on_template = Stage.search(
+            [("name", "=", stage_name), ("project_ids", "in", template.id)], limit=1
+        )
+        if already_on_template:
+            continue
+        existing_stage = Stage.search([("name", "=", stage_name)], limit=1)
+        if existing_stage:
+            existing_stage.write({"project_ids": [(4, template.id)]})
+        else:
+            Stage.create({"name": stage_name, "sequence": seq, "project_ids": [(4, template.id)]})
+
+    for milestone_name in DELIVERY_MILESTONES:
+        if not Milestone.search(
+            [("name", "=", milestone_name), ("project_id", "=", template.id)], limit=1
+        ):
+            Milestone.create({"name": milestone_name, "project_id": template.id})
+
+    for product_name in WEBSITE_PACKAGE_PRODUCTS:
+        product = Product.search([("name", "=", product_name)], limit=1)
+        if product:
+            product.write({"service_tracking": "project_only", "project_template_id": template.id})
+
+    env.cr.commit()
+    print("DELIVERY_PROJECT_TEMPLATE_SETUP: done, template id", template.id)
+
+
+def setup_timesheet_billing(env):
+    """Consulting Stunde is sold by the hour - it should bill off logged
+    time, not a quantity guessed at quoting time. Needs hr_timesheet /
+    sale_timesheet installed before this hook runs (boot script installs
+    them earlier in the -i list)."""
+    Project = env["project.project"]
+    Product = env["product.template"]
+
+    consulting_project = Project.search([("name", "=", "Consulting & Support")], limit=1)
+    if not consulting_project:
+        consulting_project = Project.create(
+            {"name": "Consulting & Support", "allow_timesheets": True, "allow_billable": True}
+        )
+    elif not consulting_project.allow_timesheets:
+        consulting_project.write({"allow_timesheets": True, "allow_billable": True})
+
+    consulting_product = Product.search([("name", "=", "Consulting Stunde")], limit=1)
+    if consulting_product:
+        consulting_product.write(
+            {
+                "service_tracking": "task_global_project",
+                "service_policy": "delivered_timesheet",
+                "project_id": consulting_project.id,
+            }
+        )
+
+    env.cr.commit()
+    print("TIMESHEET_BILLING_SETUP: done, project id", consulting_project.id)
+
+
+KNOWLEDGE_PAGES = [
+    {
+        "name": "Client Onboarding SOP",
+        "content": """<h2>Von Deposit-Eingang bis Projektstart-bereit</h2>
+<p>Adaptiert aus Lytbox Client-Onboarding-SOP, angepasst an bestehenden PromoPixels-Stack (Tally/Formbricks &rarr; n8n &rarr; Odoo).</p>
+<h3>1. Trigger</h3>
+<p>Ausgel&ouml;st durch: Deposit-Zahlung eingegangen (Stripe-Webhook) ODER unterzeichnetes SOW, je nachdem was zuerst passiert.</p>
+<p><strong>Sofort (automatisiert via n8n):</strong></p>
+<ul>
+<li>Onboarding-Formular-Link an Kunde senden (Tally/Formbricks, Paket vorausgef&uuml;llt)</li>
+<li>CRM-Stage in Odoo: <em>Vertrag &amp; Rechnung</em> &rarr; <em>Abgeschlossen</em></li>
+<li>Projekt in Odoo automatisch angelegt (aus der Vorlage &bdquo;Website-Projekt&ldquo;, siehe Sale-Order-Konfiguration)</li>
+</ul>
+<h3>2. Formular-Auswertung (innerhalb 24h nach Eingang)</h3>
+<ul>
+<li>Formular-Antworten lesen, in Projekt-Notiz (Odoo Project Description) zusammenfassen</li>
+<li>Fehlende/unklare Antworten identifizieren &rarr; gezielte R&uuml;ckfrage per E-Mail, nicht das ganze Formular nochmal</li>
+<li>Paket-Scope gegen Formular-Antworten gegenchecken (z.B. Kunde will Shop, hat aber nur Launch gebucht &rarr; Out-of-Scope-Handling greift)</li>
+</ul>
+<h3>3. Asset-Sammlung</h3>
+<p><strong>Was gebraucht wird (abh&auml;ngig von Formular-Antworten):</strong></p>
+<ul>
+<li>Logo/Brand Colors (falls &bdquo;vorhanden&ldquo; angegeben)</li>
+<li>Fotos/Bildmaterial (falls &bdquo;vorhanden&ldquo; angegeben)</li>
+<li>Texte (falls &bdquo;liefere ich&ldquo; angegeben)</li>
+<li>Domain-Zugang (falls bestehend)</li>
+<li>Bestehende Analytics/Tracking-Zug&auml;nge (falls Growth/Scale)</li>
+</ul>
+<p><strong>Prozess:</strong></p>
+<ul>
+<li>Sammel-Link senden (Google Drive Ordner oder E-Mail-Anhang-Sammlung &mdash; kein neues Tool n&ouml;tig)</li>
+<li>Frist setzen: 5 Werktage ab Onboarding-Formular</li>
+<li>Bei Fristüberschreitung: 1 Reminder nach 3 Tagen, danach verschiebt sich der Projektstart entsprechend (Timeline h&auml;ngt an Asset-Lieferung, nicht fix ab Deposit)</li>
+</ul>
+<h3>4. Kickoff</h3>
+<ul>
+<li>Kurze Kickoff-Best&auml;tigung per E-Mail: &bdquo;Alles da, Start [Datum]&ldquo; ODER &bdquo;Fehlt noch X, Start verschiebt sich auf [Datum]&ldquo;</li>
+<li>Kein separater Kickoff-Call n&ouml;tig bei Launch/Growth (Scope ist fix) &mdash; nur bei Scale, falls gew&uuml;nscht</li>
+</ul>
+<h3>5. W&auml;hrend des Builds</h3>
+<ul>
+<li>Fortschritts-Update nach jedem gr&ouml;sseren Meilenstein (nicht t&auml;glich &mdash; vermeidet Mikromanagement-Erwartung)</li>
+<li>Zwischenstand-Link (Staging/Vercel-Preview) sobald Grundger&uuml;st steht, f&uuml;r fr&uuml;hes Feedback</li>
+<li>Alle Kunden-R&uuml;ckmeldungen schriftlich (E-Mail oder Formular-Kommentar) &mdash; nie nur m&uuml;ndlich/Telefon</li>
+</ul>
+<h3>6. Vor &Uuml;bergabe</h3>
+<p>Siehe Seite &bdquo;QA-Checkliste vor Delivery&ldquo; &mdash; vollst&auml;ndig abhaken vor jeder &Uuml;bergabe.</p>
+<h3>7. &Uuml;bergabe</h3>
+<ul>
+<li>Loom-Walkthrough</li>
+<li>Login-Daten/Hosting-Infos dokumentiert und &uuml;bergeben</li>
+<li>Retainer-Pitch (Launch- bzw. Growth-Pitch)</li>
+<li>CRM-Stage in Odoo: Projekt als abgeschlossen markieren, Retainer-Opportunity anlegen falls Kunde zusagt</li>
+</ul>
+<h3>8. VA-Verantwortlichkeiten (falls delegiert)</h3>
+<ul>
+<li>Asset-Sammlung-Status t&auml;glich pr&uuml;fen, &uuml;berf&auml;llige Fristen flaggen</li>
+<li>Formular-Antworten in Odoo-Projekt-Notiz &uuml;bertragen</li>
+<li>Keine Scope- oder Preis-Entscheidungen &mdash; nur Prozess und Nachverfolgung</li>
+</ul>""",
+    },
+    {
+        "name": "QA-Checkliste vor Delivery",
+        "content": """<h2>Vor jeder &Uuml;bergabe vollst&auml;ndig abhaken</h2>
+<h3>Performance</h3>
+<ul>
+<li>Lighthouse Score Desktop: 90+</li>
+<li>Lighthouse Score Mobile: 85+</li>
+<li>LCP (Largest Contentful Paint): unter 2.5s</li>
+<li>CLS (Cumulative Layout Shift): unter 0.1</li>
+<li>Keine grossen unkomprimierten Bilder (WebP, max. 200kb pro Bild)</li>
+</ul>
+<h3>Code-Qualit&auml;t</h3>
+<ul>
+<li>Browser-Konsole: keine Errors (nur Warnings akzeptabel)</li>
+<li>Keine TODO-Kommentare im Code</li>
+<li>Keine hardcoded API Keys oder Credentials</li>
+<li>Keine Test-Inhalte (Lorem ipsum, Placeholder-Text, Dummy-Bilder)</li>
+</ul>
+<h3>Funktionalit&auml;t</h3>
+<ul>
+<li>Kontaktformular: Submit getestet, E-Mail kommt an</li>
+<li>Alle Links funktionieren (intern + extern), keine 404s</li>
+<li>Navigation: alle Anchor-Links scrollen korrekt</li>
+<li>Mobile: alle Sektionen auf iPhone 12/14 getestet</li>
+<li>Desktop: getestet auf Chrome + Safari</li>
+<li>Alle CTAs f&uuml;hren zur richtigen Ziel-URL</li>
+</ul>
+<h3>SEO &amp; Meta</h3>
+<ul>
+<li>Title Tag gesetzt (max. 60 Zeichen, enth&auml;lt Keyword + Ortsname)</li>
+<li>Meta Description gesetzt (max. 155 Zeichen)</li>
+<li>H1 vorhanden (genau eine pro Seite)</li>
+<li>H-Hierarchie korrekt (H1 &rarr; H2 &rarr; H3, keine Spr&uuml;nge)</li>
+<li>Alt-Texte auf allen Bildern</li>
+<li>Canonical URL gesetzt</li>
+<li>robots.txt vorhanden</li>
+<li>sitemap.xml vorhanden (oder generiert)</li>
+</ul>
+<h3>Tracking</h3>
+<ul>
+<li>GA4 Property verbunden, Events feuern</li>
+<li>Kontaktformular-Submit als Conversion getrackt</li>
+<li>CTA-Klicks getrackt</li>
+<li>Google Search Console verkn&uuml;pft (oder vorbereitet)</li>
+</ul>
+<h3>&Uuml;bergabe-Readiness</h3>
+<ul>
+<li>Loom-Walkthrough aufgenommen (5-10 Min)</li>
+<li>Login-Daten / Hosting-Infos dokumentiert</li>
+<li>Domain live oder Staging-Link bereit</li>
+<li>Retainer Pitch vorbereitet</li>
+</ul>""",
+    },
+]
+
+
+def setup_knowledge_base(env):
+    """document_page was installed with an empty Knowledge menu - installed
+    is not the same as usable. Imports the two SOPs the delivery process
+    actually depends on (Obsidian: Notizen/client-onboarding-sop.md,
+    Notizen/qa-checklist-delivery.md), verbatim, under one category page.
+    Safe to re-run: upserts by name."""
+    try:
+        Page = env["document.page"]
+    except KeyError:
+        print("KNOWLEDGE_BASE_SETUP: skipped, document_page not installed yet")
+        return
+
+    parent = Page.search([("name", "=", "PromoPixels Prozesse")], limit=1)
+    if not parent:
+        parent = Page.create({"name": "PromoPixels Prozesse", "type": "category"})
+
+    for page_data in KNOWLEDGE_PAGES:
+        vals = dict(page_data, parent_id=parent.id, type="content")
+        existing = Page.search([("name", "=", page_data["name"])], limit=1)
+        if existing:
+            existing.write(vals)
+        else:
+            Page.create(vals)
+
+    env.cr.commit()
+    print("KNOWLEDGE_BASE_SETUP: done,", len(KNOWLEDGE_PAGES), "pages under", parent.name)
