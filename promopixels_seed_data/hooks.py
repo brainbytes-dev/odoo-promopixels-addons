@@ -421,15 +421,13 @@ def _build_project_template(env, template_name, stage_names, milestone_names):
         template = Project.create({"name": template_name, "is_template": True})
 
     for seq, stage_name in enumerate(stage_names):
+        # Dedicated stage per template, never shared across templates - a
+        # rename/reorder on one template's board must not silently affect
+        # another template's board.
         already_on_template = Stage.search(
             [("name", "=", stage_name), ("project_ids", "in", template.id)], limit=1
         )
-        if already_on_template:
-            continue
-        existing_stage = Stage.search([("name", "=", stage_name)], limit=1)
-        if existing_stage:
-            existing_stage.write({"project_ids": [(4, template.id)]})
-        else:
+        if not already_on_template:
             Stage.create({"name": stage_name, "sequence": seq, "project_ids": [(4, template.id)]})
 
     for milestone_name in milestone_names:
@@ -464,19 +462,33 @@ def setup_delivery_project_template(env):
 def setup_scale_design_gate_template(env):
     """Scale - Website-Paket gets its own template with the extra
     design-approval gate (see SCALE_STAGES/SCALE_MILESTONES above), instead
-    of sharing the simpler Launch/Growth template."""
-    Product = env["product.template"]
+    of sharing the simpler Launch/Growth template.
 
-    template = _build_project_template(
-        env, "Vorlage: Scale-Projekt", SCALE_STAGES, SCALE_MILESTONES
-    )
+    Wrapped in try/except writing to ir.config_parameter - there is no
+    container log access in this environment, so a failed hook otherwise
+    just silently rolls back with zero way to diagnose why."""
+    import traceback
 
-    product = Product.search([("name", "=", "Scale - Website-Paket")], limit=1)
-    if product:
-        product.write({"service_tracking": "project_only", "project_template_id": template.id})
+    try:
+        Product = env["product.template"]
 
-    env.cr.commit()
-    print("SCALE_DESIGN_GATE_TEMPLATE_SETUP: done, template id", template.id)
+        template = _build_project_template(
+            env, "Vorlage: Scale-Projekt", SCALE_STAGES, SCALE_MILESTONES
+        )
+
+        product = Product.search([("name", "=", "Scale - Website-Paket")], limit=1)
+        if product:
+            product.write({"service_tracking": "project_only", "project_template_id": template.id})
+
+        env.cr.commit()
+        print("SCALE_DESIGN_GATE_TEMPLATE_SETUP: done, template id", template.id)
+    except Exception:
+        env.cr.rollback()
+        env["ir.config_parameter"].sudo().set_param(
+            "promopixels_seed_data.scale_template_error", traceback.format_exc()
+        )
+        env.cr.commit()
+        print("SCALE_DESIGN_GATE_TEMPLATE_SETUP: FAILED, see ir.config_parameter promopixels_seed_data.scale_template_error")
 
 
 def setup_timesheet_billing(env):
