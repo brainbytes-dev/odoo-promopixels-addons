@@ -7,4 +7,5 @@ from .hooks import (
     setup_timesheet_billing,
     setup_knowledge_base,
     setup_lytbox_playbook,
+    setup_properties_analytic_plan,
 )

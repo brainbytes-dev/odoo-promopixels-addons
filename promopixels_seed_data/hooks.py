@@ -709,3 +709,18 @@ def setup_lytbox_playbook(env):
 
     env.cr.commit()
     print("LYTBOX_PLAYBOOK_SETUP: done,", total, "pages under", root.name)
+
+
+def setup_properties_analytic_plan(env):
+    """Standing revenue-generating properties (websites, YouTube channels,
+    Instagram accounts, ...) need their own P&L dimension, separate from the
+    existing "Project" analytic plan (which is per client engagement, not
+    per long-lived owned property). Creates the empty plan only - Henrik
+    adds one analytic account per property once a channel actually starts
+    moving money, not invented ahead of time. Safe to re-run: upserts by
+    name."""
+    Plan = env["account.analytic.plan"]
+    if not Plan.search([("name", "=", "Properties & Channels")], limit=1):
+        Plan.create({"name": "Properties & Channels"})
+    env.cr.commit()
+    print("PROPERTIES_ANALYTIC_PLAN_SETUP: done")
