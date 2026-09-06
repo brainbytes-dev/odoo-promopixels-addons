@@ -747,3 +747,32 @@ def setup_properties_analytic_plan(env):
 # site-wide outage on 2026-09-06. No hook needed here: static manifest
 # assets are picked up on the next registry load, same as any other
 # module's static files.
+
+MUK_THEME_MODULES = [
+    "muk_web_theme",
+    "muk_web_appsbar",
+    "muk_web_group",
+    "muk_web_chatter",
+    "muk_web_dialog",
+    "muk_web_colors",
+    "muk_web_refresh",
+]
+
+
+def uninstall_muk_theme(env):
+    """Emergency stabilization, 2026-09-06: muk_web_appsbar's res.users
+    field 'sidebar_type' is confirmed present in the source file, correctly
+    imported, correctly reflected in ir.model.fields/ir.model.data, and
+    persisted as a real not-null DB column - yet every authenticated /odoo
+    request threw AttributeError on it for hours, across many redeploys,
+    workers=0, and multiple verification strategies, with no reproducible
+    root cause found remotely (no container shell access to dig further).
+    Odoo's CRM/Sales/Invoicing themselves never depend on this theme -
+    removing it trades cosmetics for a working app. Revisit MuK properly
+    in a calm session, not as a repeated hotfix target."""
+    Module = env["ir.module.module"]
+    installed = Module.search([("name", "in", MUK_THEME_MODULES), ("state", "=", "installed")])
+    if installed:
+        installed.button_immediate_uninstall()
+    env.cr.commit()
+    print("MUK_THEME_UNINSTALLED:", installed.mapped("name") if installed else "nothing to do")
