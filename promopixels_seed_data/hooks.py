@@ -784,3 +784,17 @@ def setup_theme_colors(env):
         )
         env.cr.commit()
         print("THEME_COLORS_SETUP: FAILED, see ir.config_parameter promopixels_seed_data.theme_colors_error")
+
+
+def emergency_reset_theme_colors(env):
+    """setup_theme_colors left a broken customized SCSS asset behind
+    (colors_light.scss "not found in bundle" -> 500 on every single page,
+    site-wide outage 2026-09-06). Resets all three color assets (light,
+    dark, theme) back to MuK's shipped defaults via the same official
+    reset actions the Settings UI's "Reset" buttons use. Priority: get the
+    site back up. Re-applying the brand colors correctly is a separate,
+    unhurried follow-up."""
+    Settings = env["res.config.settings"].create({})
+    Settings.action_reset_theme_color_assets()
+    env.cr.commit()
+    print("EMERGENCY_RESET_THEME_COLORS: done")
