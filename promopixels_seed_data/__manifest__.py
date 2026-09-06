@@ -13,8 +13,29 @@
     "category": "Sales",
     "license": "AGPL-3",
     "author": "BrainBytes Studio",
-    "depends": ["product"],
+    "depends": ["product", "muk_web_colors", "muk_web_theme"],
     "data": [],
+    "assets": {
+        "web._assets_primary_variables": [
+            (
+                "after",
+                "muk_web_colors/static/src/scss/colors_light.scss",
+                "promopixels_seed_data/static/src/scss/promopixels_colors_light.scss",
+            ),
+            (
+                "after",
+                "muk_web_theme/static/src/scss/colors.scss",
+                "promopixels_seed_data/static/src/scss/promopixels_theme_colors.scss",
+            ),
+        ],
+        "web.assets_web_dark": [
+            (
+                "after",
+                "muk_web_colors/static/src/scss/colors_dark.scss",
+                "promopixels_seed_data/static/src/scss/promopixels_colors_dark.scss",
+            ),
+        ],
+    },
     "installable": True,
     "post_init_hook": "post_init_hook",
 }

@@ -1,0 +1,8 @@
+// PromoPixels sidebar/appsbar colors - overrides muk_web_theme's defaults.
+// Same value in light and dark mode by design (persistent dark rail, the
+// Linear/Vercel look Henrik asked for).
+
+$mk_color_appsmenu_text: #FAFAFA;
+$mk_color_appbar_text: #FAFAFA;
+$mk_color_appbar_active: #D4208F;
+$mk_color_appbar_background: #1A1C3F;

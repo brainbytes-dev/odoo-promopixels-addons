@@ -1,0 +1,10 @@
+// PromoPixels brand colors, dark mode - overrides muk_web_colors' defaults.
+// Loaded right after MuK's own colors_dark.scss in the web.assets_web_dark
+// bundle. Brand pink stays identical to light mode by design.
+
+$mk_color_brand: #1A1C3F;
+$mk_color_primary: #D4208F;
+$mk_color_success: #22C55E;
+$mk_color_info: #3B82F6;
+$mk_color_warning: #F59E0B;
+$mk_color_danger: #FF6467;

@@ -736,65 +736,14 @@ def setup_properties_analytic_plan(env):
         print("PROPERTIES_ANALYTIC_PLAN_SETUP: FAILED, see ir.config_parameter promopixels_seed_data.analytic_plan_error")
 
 
-# PromoPixels brand palette (Henrik, 2026-09-05): single pink/magenta accent
-# shared by light and dark mode, exact backgrounds/borders per mode. Applied
-# through MuK's own supported color-settings mechanism (res.config.settings
-# -> muk_web_colors' color_assets_editor), not raw SCSS hacking - stays
-# compatible with MuK's own theme updates. Success/info/warning are NOT
-# part of Henrik's spec (only accent + destructive were given) - picked
-# harmonizing standard semantic colors for those three.
-THEME_SETTINGS = {
-    "color_brand_light": "#D4208F",
-    "color_primary_light": "#D4208F",
-    "color_success_light": "#16A34A",
-    "color_info_light": "#2563EB",
-    "color_warning_light": "#D97706",
-    "color_danger_light": "#E7000B",
-    "color_brand_dark": "#D4208F",
-    "color_primary_dark": "#D4208F",
-    "color_success_dark": "#22C55E",
-    "color_info_dark": "#3B82F6",
-    "color_warning_dark": "#F59E0B",
-    "color_danger_dark": "#FF6467",
-    "theme_color_appbar_background": "#1A1C3F",
-    "theme_color_appbar_text": "#FAFAFA",
-    "theme_color_appbar_active": "#D4208F",
-    "theme_color_appsmenu_text": "#FAFAFA",
-}
-
-
-def setup_theme_colors(env):
-    """Sets the PromoPixels accent + sidebar colors via MuK's own settings
-    wizard mechanism (safe, upgrade-compatible) - NOT a full page/card/
-    border re-skin, MuK's settings API doesn't expose those tokens. Runs
-    every time the seed version bumps, safe to re-run (just re-applies the
-    same values)."""
-    import traceback
-
-    try:
-        Settings = env["res.config.settings"]
-        settings = Settings.create(THEME_SETTINGS)
-        settings.execute()
-        env.cr.commit()
-        print("THEME_COLORS_SETUP: done")
-    except Exception:
-        env.cr.rollback()
-        env["ir.config_parameter"].sudo().set_param(
-            "promopixels_seed_data.theme_colors_error", traceback.format_exc()
-        )
-        env.cr.commit()
-        print("THEME_COLORS_SETUP: FAILED, see ir.config_parameter promopixels_seed_data.theme_colors_error")
-
-
-def emergency_reset_theme_colors(env):
-    """setup_theme_colors left a broken customized SCSS asset behind
-    (colors_light.scss "not found in bundle" -> 500 on every single page,
-    site-wide outage 2026-09-06). Resets all three color assets (light,
-    dark, theme) back to MuK's shipped defaults via the same official
-    reset actions the Settings UI's "Reset" buttons use. Priority: get the
-    site back up. Re-applying the brand colors correctly is a separate,
-    unhurried follow-up."""
-    Settings = env["res.config.settings"].create({})
-    Settings.action_reset_theme_color_assets()
-    env.cr.commit()
-    print("EMERGENCY_RESET_THEME_COLORS: done")
+# PromoPixels brand colors (Henrik, 2026-09-05): applied as static SCSS
+# files registered via this module's own manifest 'assets' key (see
+# __manifest__.py), the same mechanism MuK's own modules use for their
+# default colors. NOT via MuK's Settings-UI runtime color-customization
+# feature (res.config.settings -> muk_web_colors.color_assets_editor) -
+# that mechanism has a bug in this Odoo 19 build (creates an ir.asset
+# override whose path doesn't match the manifest-registered target,
+# "File(s) ... not found in bundle" on every single page) that caused a
+# site-wide outage on 2026-09-06. No hook needed here: static manifest
+# assets are picked up on the next registry load, same as any other
+# module's static files.
