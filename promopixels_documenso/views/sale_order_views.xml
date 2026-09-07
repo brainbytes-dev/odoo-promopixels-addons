@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 BrainBytes Studio, License AGPL-3.0 or later -->
+<odoo>
+    <record id="view_order_form_documenso" model="ir.ui.view">
+        <field name="name">sale.order.form - promopixels_documenso</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <header position="inside">
+                <button name="action_send_to_documenso"
+                        string="Zum Signieren senden"
+                        type="object"
+                        class="btn-secondary"
+                        invisible="state not in ('sale', 'sent') or documenso_state != 'not_sent'"/>
+            </header>
+            <div name="button_box" position="inside">
+                <div class="oe_stat_button" invisible="documenso_state == 'not_sent'">
+                    <div class="o_stat_info">
+                        <span class="o_stat_text">Signatur</span>
+                        <field name="documenso_state" widget="badge"
+                               decoration-info="documenso_state == 'sent'"
+                               decoration-success="documenso_state == 'signed'"
+                               decoration-danger="documenso_state == 'rejected'"/>
+                    </div>
+                </div>
+            </div>
+        </field>
+    </record>
+</odoo>
