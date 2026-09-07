@@ -1,10 +1,9 @@
 # Copyright 2026 BrainBytes Studio, License AGPL-3.0 or later
 #
-# Sends the standard quotation report to Documenso's v1 Document API
-# (sign.promopixels.ch, self-hosted documenso/documenso:v1.12.10 - the
-# newer "envelope" v2 API from Documenso's hosted docs does not exist on
-# this pinned version, verified against the v1.12.10 tag's own
-# packages/api/v1/examples on GitHub).
+# Sends the standard quotation report to Documenso's v2 "envelope" API
+# (sign.promopixels.ch, self-hosted) and tracks the signing state. Uses the
+# envelope endpoints, not the legacy /document endpoints - Documenso's own
+# docs mark /document for deprecation in favour of /envelope.
 
 import logging
 
@@ -15,13 +14,13 @@ from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
 
-DEFAULT_API_URL = "https://sign.promopixels.ch/api/v1"
+DEFAULT_API_URL = "https://sign.promopixels.ch/api/v2"
 
 
 class SaleOrder(models.Model):
     _inherit = "sale.order"
 
-    documenso_document_id = fields.Char(string="Documenso Document ID", copy=False, readonly=True)
+    documenso_envelope_id = fields.Char(string="Documenso Envelope ID", copy=False, readonly=True)
     documenso_state = fields.Selection(
         [
             ("not_sent", "Nicht gesendet"),
@@ -69,54 +68,62 @@ class SaleOrder(models.Model):
             "sale.action_report_saleorder", self.ids
         )
 
-        document = self._documenso_request(
-            "POST", "documents",
+        envelope = self._documenso_request(
+            "POST", "envelope/create",
+            json={"payload": {"title": f"Angebot {self.name}", "type": "DOCUMENT"}},
+        )
+        envelope_id = envelope["id"]
+
+        items = self._documenso_request(
+            "POST", "envelope/item/create-many",
+            data={"payload": '{"envelopeId": "%s"}' % envelope_id},
+            files={"files": (f"{self.name}.pdf", pdf_content, "application/pdf")},
+        )
+        envelope_item_id = items["data"][0]["id"]
+
+        recipients = self._documenso_request(
+            "POST", "envelope/recipient/create-many",
             json={
-                "title": f"Angebot {self.name}",
-                "recipients": [{
-                    "name": self.partner_id.name or self.partner_id.email,
-                    "email": self.partner_id.email,
-                    "role": "SIGNER",
-                }],
-                "meta": {
-                    "subject": f"Bitte unterschreiben: Angebot {self.name}",
-                    "message": f"Hallo, bitte unterschreiben Sie das beigefügte Angebot {self.name}.",
-                },
+                "envelopeId": envelope_id,
+                "data": [{"email": self.partner_id.email, "name": self.partner_id.name or self.partner_id.email, "role": "SIGNER"}],
             },
         )
-        document_id = document["documentId"]
-        recipient_id = document["recipients"][0]["recipientId"]
-
-        upload_resp = requests.put(
-            document["uploadUrl"],
-            data=pdf_content,
-            headers={"Content-Type": "application/octet-stream"},
-            timeout=60,
-        )
-        if not upload_resp.ok:
-            _logger.error("Documenso upload failed %s: %s", upload_resp.status_code, upload_resp.text)
-            raise UserError(_("Documenso-PDF-Upload fehlgeschlagen (%s).") % upload_resp.status_code)
+        recipient_id = recipients["data"][0]["id"]
 
         # Position ist ein erster Schätzwert (unten rechts auf Seite 1, in %
         # der Seitenmasse) - beim ersten echten Testlauf im Documenso-
         # Dashboard visuell prüfen und ggf. anpassen.
         self._documenso_request(
-            "POST", f"documents/{document_id}/fields",
+            "POST", "envelope/field/create-many",
             json={
-                "type": "SIGNATURE",
-                "recipientId": recipient_id,
-                "pageNumber": 1,
-                "pageX": 65,
-                "pageY": 85,
-                "pageWidth": 25,
-                "pageHeight": 6,
+                "envelopeId": envelope_id,
+                "data": [{
+                    "type": "SIGNATURE",
+                    "recipientId": recipient_id,
+                    "envelopeItemId": envelope_item_id,
+                    "page": 1,
+                    "positionX": 65,
+                    "positionY": 85,
+                    "width": 25,
+                    "height": 6,
+                }],
             },
         )
 
-        self._documenso_request("POST", f"documents/{document_id}/send", json={"sendEmail": True})
+        self._documenso_request(
+            "POST", "envelope/distribute",
+            json={
+                "envelopeId": envelope_id,
+                "meta": {
+                    "subject": f"Bitte unterschreiben: Angebot {self.name}",
+                    "distributionMethod": "EMAIL",
+                    "language": "de",
+                },
+            },
+        )
 
         self.write({
-            "documenso_document_id": str(document_id),
+            "documenso_envelope_id": envelope_id,
             "documenso_state": "sent",
             "documenso_sent_date": fields.Datetime.now(),
         })
